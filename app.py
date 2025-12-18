@@ -4,61 +4,61 @@ import io
 from docx import Document
 from fpdf import FPDF
 
-st.set_page_config(page_title="Conversor de Carpetas", page_icon="📂")
+# Configuración de la página
+st.set_page_config(page_title="Convertidor", page_icon="📄")
 
-st.title("📂 Conversor de Word a PDF")
-st.write("Selecciona la carpeta o todos los archivos. Solo procesaremos los .docx")
+def procesar_archivos():
+    st.title("📂 Convertidor Word a PDF")
+    st.write("Sube tu carpeta o archivos .docx")
 
-# Cargador de archivos
-archivos_subidos = st.file_uploader(
-    "Sube tus archivos aquí", 
-    accept_multiple_files=True
-)
+    archivos = st.file_uploader("Selecciona archivos", accept_multiple_files=True)
 
-if archivos_subidos:
-    # Filtramos archivos válidos
-    docs_a_procesar = [f for f in archivos_subidos if f.name.lower().endswith(".docx") and not f.name.startswith("~$")]
-    
-    if not docs_a_procesar:
-        st.warning("No se encontraron archivos .docx válidos.")
-    else:
-        st.info(f"Archivos detectados: {len(docs_a_procesar)}")
+    if archivos:
+        # Filtrar solo archivos .docx validos
+        validos = [f for f in archivos if f.name.lower().endswith(".docx") and not f.name.startswith("~$")]
+        
+        if not validos:
+            st.warning("No se encontraron archivos .docx.")
+            return
 
-        if st.button("🚀 Convertir a PDF"):
-            buf = io.BytesIO()
-            barra = st.progress(0)
+        st.info(f"Archivos a convertir: {len(validos)}")
+
+        if st.button("🚀 Iniciar conversión"):
+            zip_buffer = io.BytesIO()
+            progreso = st.progress(0)
             
-            try:
-                with zipfile.ZipFile(buf, "w") as z:
-                    for i, archivo in enumerate(docs_a_procesar):
+            with zipfile.ZipFile(zip_buffer, "w") as z:
+                for i, arc in enumerate(validos):
+                    try:
                         # Leer Word
-                        doc = Document(archivo)
+                        doc = Document(arc)
                         pdf = FPDF()
                         pdf.add_page()
-                        pdf.set_font("Arial", size=12)
+                        pdf.set_font("Helvetica", size=12)
                         
-                        # Escribir contenido
-                        for para in doc.paragraphs:
-                            if para.text.strip():
-                                # fpdf2 maneja mejor el texto, pero usamos 'latin-1' por compatibilidad simple
-                                txt = para.text.encode('latin-1', 'replace').decode('latin-1')
-                                pdf.multi_cell(0, 10, txt=txt)
+                        # Escribir párrafos
+                        for p in doc.paragraphs:
+                            if p.text.strip():
+                                # Limpiar texto para evitar errores de símbolos
+                                limpio = p.text.encode('latin-1', 'replace').decode('latin-1')
+                                pdf.multi_cell(0, 10, txt=limpio)
                         
-                        # Obtener bytes del PDF
-                        pdf_bytes = pdf.output()
+                        # Generar PDF
+                        pdf_output = pdf.output()
+                        nombre_pdf = arc.name.rsplit('.', 1)[0] + ".pdf"
+                        z.writestr(nombre_pdf, pdf_output)
                         
-                        # Nombre de salida
-                        nombre_pdf = archivo.name.rsplit('.', 1)[0] + ".pdf"
-                        z.writestr(nombre_pdf, pdf_bytes)
-                        
-                        barra.progress((i + 1) / len(docs_a_procesar))
+                        progreso.progress((i + 1) / len(validos))
+                    except Exception as e:
+                        st.error(f"Error en {arc.name}: {str(e)}")
 
-                st.success("¡Hecho!")
-                st.download_button(
-                    label="⬇️ Descargar ZIP",
-                    data=buf.getvalue(),
-                    file_name="mis_pdfs.zip",
-                    mime="application/zip"
-                )
-            except Exception as e:
-                st.error(f"Ocurrió un error técnico: {e}")
+            st.success("¡Conversión completa!")
+            st.download_button(
+                label="⬇️ Descargar ZIP",
+                data=zip_buffer.getvalue(),
+                file_name="documentos_pdf.zip",
+                mime="application/zip"
+            )
+
+if __name__ == "__main__":
+    procesar_archivos()
