@@ -6,63 +6,59 @@ from fpdf import FPDF
 
 st.set_page_config(page_title="Conversor de Carpetas", page_icon="📂")
 
-st.title("📂 Conversor Automático de Carpetas")
-st.markdown("""
-1. Haz clic en **Browse files**.
-2. Selecciona la **carpeta principal** (la que contiene todo).
-3. El programa buscará todos los Word dentro de ella y sus subcarpetas.
-""")
+st.title("📂 Conversor de Word a PDF")
+st.write("Selecciona la carpeta o todos los archivos. Solo procesaremos los .docx")
 
-# Cambiamos la configuración para aceptar carpetas si el navegador lo permite
-# Aunque Streamlit lo muestra como archivos, al arrastrar una carpeta, 
-# el navegador procesa todos los archivos internos.
+# Cargador de archivos
 archivos_subidos = st.file_uploader(
-    "Sube tu carpeta completa aquí", 
+    "Sube tus archivos aquí", 
     accept_multiple_files=True
 )
 
 if archivos_subidos:
-    # Filtrado inteligente
+    # Filtramos archivos válidos
     docs_a_procesar = [f for f in archivos_subidos if f.name.lower().endswith(".docx") and not f.name.startswith("~$")]
     
     if not docs_a_procesar:
-        st.warning("No se encontraron archivos .docx en la carpeta seleccionada.")
+        st.warning("No se encontraron archivos .docx válidos.")
     else:
-        st.success(f"Se encontraron {len(docs_a_procesar)} archivos Word. Los demás formatos han sido descartados.")
+        st.info(f"Archivos detectados: {len(docs_a_procesar)}")
 
-        if st.button("🚀 Convertir todo a PDF"):
+        if st.button("🚀 Convertir a PDF"):
             buf = io.BytesIO()
             barra = st.progress(0)
             
-            with zipfile.ZipFile(buf, "w") as z:
-                for i, archivo in enumerate(docs_a_procesar):
-                    try:
-                        # Procesamiento del Word
+            try:
+                with zipfile.ZipFile(buf, "w") as z:
+                    for i, archivo in enumerate(docs_a_procesar):
+                        # Leer Word
                         doc = Document(archivo)
                         pdf = FPDF()
                         pdf.add_page()
                         pdf.set_font("Arial", size=12)
                         
+                        # Escribir contenido
                         for para in doc.paragraphs:
                             if para.text.strip():
-                                # Manejo de caracteres latinos
+                                # fpdf2 maneja mejor el texto, pero usamos 'latin-1' por compatibilidad simple
                                 txt = para.text.encode('latin-1', 'replace').decode('latin-1')
                                 pdf.multi_cell(0, 10, txt=txt)
                         
-                        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+                        # Obtener bytes del PDF
+                        pdf_bytes = pdf.output()
                         
-                        # Guardamos en el ZIP usando el nombre original
+                        # Nombre de salida
                         nombre_pdf = archivo.name.rsplit('.', 1)[0] + ".pdf"
                         z.writestr(nombre_pdf, pdf_bytes)
                         
-                    except Exception as e:
-                        st.error(f"Error procesando {archivo.name}: {e}")
-                    
-                    barra.progress((i + 1) / len(docs_a_procesar))
+                        barra.progress((i + 1) / len(docs_a_procesar))
 
-            st.download_button(
-                label="⬇️ Descargar todos los PDFs (.zip)",
-                data=buf.getvalue(),
-                file_name="conversion_carpeta.zip",
-                mime="application/zip"
-            )
+                st.success("¡Hecho!")
+                st.download_button(
+                    label="⬇️ Descargar ZIP",
+                    data=buf.getvalue(),
+                    file_name="mis_pdfs.zip",
+                    mime="application/zip"
+                )
+            except Exception as e:
+                st.error(f"Ocurrió un error técnico: {e}")
